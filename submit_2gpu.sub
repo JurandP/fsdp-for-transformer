@@ -1,0 +1,45 @@
+#!/bin/bash
+#SBATCH --job-name=transformer_2gpu
+#SBATCH --output=logs/training_output_2gpu.log
+#SBATCH --error=logs/training_error_2gpu.log
+#SBATCH --nodes=1
+#SBATCH --ntasks=2
+#SBATCH --ntasks-per-node=2 
+#SBATCH --gpus=2
+#SBATCH --partition=###
+#SBATCH --account=###
+#SBATCH --mem=64GB    
+#SBATCH --time=24:00:00
+
+source .venv/bin/activate
+
+export OMP_NUM_THREADS=4   
+export WORLD_SIZE=${SLURM_NTASKS}  
+
+export MASTER_PORT=$((12340 + SLURM_ARRAY_TASK_ID))
+master_addr=$(scontrol show hostnames "$SLURM_NODELIST" | head -n 1)
+export MASTER_ADDR=$master_addr
+
+echo "NODELIST=${SLURM_NODELIST}"
+echo "WORLD_SIZE=${SLURM_NTASKS}"
+echo "MASTER_ADDR=${MASTER_ADDR}"
+
+torchrun --nnodes=1 --nproc_per_node=2 \
+    main.py \
+        --train_steps 4400 \
+        --batch_size 256 \
+        --seed 42 \
+        --vocab_size 50257 \
+        --max_len 256 \
+        --d_model 256 \
+        --num_heads 4 \
+        --num_layers 4 \
+        --learning_rate 1e-4 \
+        --dropout 0.0 \
+        --seq_length 256 \
+        --log_train_loss_freq 100 \
+        --log_valid_loss_freq 100 \
+        --track_memory
+
+# Deactivate the environment
+deactivate

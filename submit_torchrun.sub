@@ -1,0 +1,33 @@
+#!/bin/bash
+#SBATCH --job-name=submit_torchrun
+#SBATCH --output=logs/training_output_torchrun.log
+#SBATCH --error=logs/training_error_torchrun.log
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --gpus-per-task=1
+#SBATCH --gpus=1
+#SBATCH --mem=1GB
+#SBATCH --time=06:00:00               
+#SBATCH --partition=###
+#SBATCH --account=###
+
+source .venv/bin/activate
+
+torchrun --nnodes=1 --nproc_per_node 1 \
+    main.py \
+        --train_steps 10 \
+        --batch_size 128 \
+        --seed 42 \
+        --vocab_size 50257 \
+        --max_len 32 \
+        --d_model 32 \
+        --num_heads 2 \
+        --num_layers 2 \
+        --learning_rate 1e-4 \
+        --dropout 0.0 \
+        --seq_length 32 \
+        --log_train_loss_freq 1 \
+        --log_valid_loss_freq 1 \
+
+deactivate
+

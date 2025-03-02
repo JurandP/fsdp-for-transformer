@@ -1,0 +1,58 @@
+#!/bin/bash
+#SBATCH --job-name=grid_search  
+#SBATCH --output=logs/grid_search_%A_%a.log 
+#SBATCH --error=logs/grid_search_%A_%a.err
+#SBATCH --nodes=2
+#SBATCH --ntasks=2
+#SBATCH --gpus-per-task=1
+#SBATCH --array=0-2%1         
+#SBATCH --mem=64GB                      
+#SBATCH --time=23:00:00                 
+#SBATCH --partition=###
+#SBATCH --account=###
+
+source .venv/bin/activate
+
+echo SLURM_NNODES=$SLURM_NNODES
+echo RANDOM=$RANDOM
+echo SLURM_JOB_NODELIST=$SLURM_JOB_NODELIST
+
+
+export MASTER_PORT=$((12340 + SLURM_ARRAY_TASK_ID))
+master_addr=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_ADDR=$master_addr
+export WORLD_SIZE=2
+
+nodes=( $( scontrol show hostnames $SLURM_JOB_NODELIST ) )
+echo nodes=$nodes
+nodes_array=($nodes)
+head_node=${nodes_array[0]}
+echo $head_node
+head_node_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address)
+
+# Learning rates for the grid search
+declare -a LEARNING_RATES=(1e-2 1e-3 1e-4)
+LEARNING_RATE=${LEARNING_RATES[$SLURM_ARRAY_TASK_ID]}
+
+srun torchrun \
+    --nnodes 2 \
+    --nproc_per_node 1 \
+    --rdzv_id $RANDOM \
+    --rdzv_backend c10d \
+    --rdzv_endpoint $head_node_ip:29500  \
+    main.py \
+        --train_steps 4400 \
+        --batch_size 256 \
+        --seed 42 \
+        --vocab_size 50257 \
+        --max_len 256 \
+        --d_model 256 \
+        --num_heads 4 \
+        --num_layers 4 \
+        --learning_rate $LEARNING_RATE \
+        --dropout 0.0 \
+        --seq_length 256 \
+        --log_train_loss_freq 100 \
+        --log_valid_loss_freq 100
+
+deactivate
